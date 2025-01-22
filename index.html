@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Montador de Times de Vôlei</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Montador de Times de Vôlei</h1>
+
+        <section id="player-management">
+            <h2>Gerenciar Jogadores Cadastrados</h2>
+            <div id="add-player-form" class="hidden">
+                <div class="input-group">
+                    <label for="newPlayerName">Nome do Jogador:</label>
+                    <input type="text" id="newPlayerName" placeholder="Nome">
+                </div>
+                <div class="input-group">
+                    <label for="newPlayerLevel">Nível:</label>
+                    <select id="newPlayerLevel">
+                        <option value="iniciante">Iniciante</option>
+                        <option value="intermediario">Intermediário</option>
+                        <option value="avancado">Avançado</option>
+                    </select>
+                </div>
+                <button onclick="registerNewPlayer()">Cadastrar Jogador</button>
+                <button onclick="toggleAddPlayerForm()">Cancelar</button>
+            </div>
+            <button onclick="toggleAddPlayerForm()">Adicionar Novo Jogador Cadastrado</button>
+            <div id="registered-players-list">
+                <!-- Registered players will be listed here -->
+            </div>
+
+        </section>
+
+        <section id="player-selection-section">
+            <h2>Selecionar Jogadores para Partida</h2>
+            <div id="available-players-list">
+                <!-- Available registered players to select for current game -->
+            </div>
+        </section>
+
+        <button id="generate-teams-btn" onclick="generateTeams()" disabled>Gerar Times</button>
+
+        <div id="teams-output" class="hidden">
+            <h2>Times Formados</h2>
+            <div id="tournament-bracket" class="hidden">
+                <h3>Torneio</h3>
+                <div class="bracket">
+                    <!-- Tournament bracket -->
+                </div>
+            </div>
+            <div id="non-tournament-teams" class="hidden">
+                <h3>Times Iniciais</h3>
+                <div id="initial-teams" class="teams-grid"></div>
+                <div id="rotation-plans" class="hidden">
+                    <h3>Próximas Rodadas (Com Rotação)</h3>
+                    <div id="outside-players-info"></div>
+                    <div id="round-rotation"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
