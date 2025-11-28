@@ -1,34 +1,88 @@
-const registeredPlayers = loadRegisteredPlayers();
+const STORAGE_KEY = 'registeredVolleyballPlayers';
+let registeredPlayers = loadRegisteredPlayers();
 let selectedPlayersForGame = [];
+let currentEditIndex = null;
+let currentFilter = '';
 
-document.addEventListener('DOMContentLoaded', () => {
+const playerNameInput = document.getElementById('newPlayerName');
+const playerLevelSelect = document.getElementById('newPlayerLevel');
+const submitPlayerBtn = document.getElementById('submit-player-btn');
+const formHelperText = document.getElementById('form-helper');
+
+const registeredCountEl = document.getElementById('registered-count');
+const selectedCountEl = document.getElementById('selected-count');
+const balanceInfoEl = document.getElementById('balance-info');
+const modeInfoEl = document.getElementById('mode-info');
+
+function init() {
     displayRegisteredPlayers();
-});
+    updateSummaryCards();
+}
+
+document.addEventListener('DOMContentLoaded', init);
 
 function toggleAddPlayerForm() {
     const form = document.getElementById('add-player-form');
     form.classList.toggle('hidden');
     if (!form.classList.contains('hidden')) {
         form.style.height = 'auto';
+        playerNameInput.focus();
     } else {
         form.style.height = '0';
+        resetFormState();
     }
 }
 
+function cancelPlayerForm() {
+    const form = document.getElementById('add-player-form');
+    form.classList.add('hidden');
+    form.style.height = '0';
+    resetFormState();
+}
+
+function resetFormState() {
+    playerNameInput.value = '';
+    playerLevelSelect.value = 'iniciante';
+    currentEditIndex = null;
+    submitPlayerBtn.textContent = 'Cadastrar';
+    formHelperText.textContent = 'Use nomes únicos para evitar confusões. Você pode editar depois.';
+}
+
 function registerNewPlayer() {
-    const playerName = document.getElementById('newPlayerName').value.trim();
-    const playerLevel = document.getElementById('newPlayerLevel').value;
+    const playerName = playerNameInput.value.trim();
+    const playerLevel = playerLevelSelect.value;
 
     if (!playerName) {
-        alert("Por favor, insira o nome do jogador.");
+        alert('Por favor, insira o nome do jogador.');
         return;
     }
 
-    const newPlayer = { name: playerName, level: playerLevel };
-    registeredPlayers.push(newPlayer);
+    const isDuplicate = registeredPlayers.some((player, index) =>
+        player.name.toLowerCase() === playerName.toLowerCase() && index !== currentEditIndex
+    );
+
+    if (isDuplicate) {
+        alert('Já existe um jogador com esse nome. Use um nome diferente.');
+        return;
+    }
+
+    const playerData = { name: playerName, level: playerLevel };
+
+    if (currentEditIndex !== null) {
+        const previousName = registeredPlayers[currentEditIndex].name;
+        registeredPlayers[currentEditIndex] = playerData;
+        selectedPlayersForGame = selectedPlayersForGame.map(p =>
+            p.name === previousName ? playerData : p
+        );
+    } else {
+        registeredPlayers.push(playerData);
+    }
+
     saveRegisteredPlayers();
     displayRegisteredPlayers();
-    document.getElementById('newPlayerName').value = '';
+    displayAvailablePlayersForSelection();
+    updateSummaryCards();
+    cancelPlayerForm();
 }
 
 function displayRegisteredPlayers() {
@@ -36,110 +90,170 @@ function displayRegisteredPlayers() {
     playersListDiv.innerHTML = '';
 
     if (registeredPlayers.length === 0) {
-        playersListDiv.innerHTML = "<p>Nenhum jogador cadastrado ainda.</p>";
+        playersListDiv.innerHTML = '<p>Nenhum jogador cadastrado ainda.</p>';
         return;
     }
 
-    const ul = document.createElement('ul');
+    const fragment = document.createDocumentFragment();
     registeredPlayers.forEach((player, index) => {
-        const li = document.createElement('li');
-        li.innerHTML = `
-            <span>${player.name} <span class="level-badge ${player.level}">${player.level}</span></span>
+        const card = document.createElement('div');
+        card.classList.add('player-card');
+        card.innerHTML = `
             <div>
-                <button onclick="editRegisteredPlayer(${index})">Editar</button>
-                <button onclick="removeRegisteredPlayer(${index})">Remover</button>
+                <p class="player-name">${player.name}</p>
+                <p class="player-meta">Nível: <span class="level-badge ${player.level}">${player.level}</span></p>
+            </div>
+            <div class="action-group">
+                <button class="ghost" onclick="editRegisteredPlayer(${index})">Editar</button>
+                <button class="ghost danger" onclick="removeRegisteredPlayer(${index})">Remover</button>
             </div>
         `;
-        ul.appendChild(li);
+        fragment.appendChild(card);
     });
-    playersListDiv.appendChild(ul);
+
+    playersListDiv.appendChild(fragment);
     displayAvailablePlayersForSelection();
 }
 
-
 function editRegisteredPlayer(index) {
-    alert("Funcionalidade de edição não implementada nesta versão.");
+    currentEditIndex = index;
+    playerNameInput.value = registeredPlayers[index].name;
+    playerLevelSelect.value = registeredPlayers[index].level;
+    submitPlayerBtn.textContent = 'Salvar alterações';
+    formHelperText.textContent = 'Atualize o nome ou o nível e clique em salvar.';
+
+    const form = document.getElementById('add-player-form');
+    form.classList.remove('hidden');
+    form.style.height = 'auto';
+    playerNameInput.focus();
 }
 
 function removeRegisteredPlayer(index) {
-    registeredPlayers.splice(index, 1);
+    const confirmation = confirm('Deseja realmente remover este jogador?');
+    if (!confirmation) return;
+
+    const removedPlayer = registeredPlayers.splice(index, 1)[0];
+    selectedPlayersForGame = selectedPlayersForGame.filter(p => p.name !== removedPlayer.name);
+
     saveRegisteredPlayers();
     displayRegisteredPlayers();
+    displayAvailablePlayersForSelection();
+    updateSummaryCards();
 }
-
 
 function displayAvailablePlayersForSelection() {
     const availablePlayersDiv = document.getElementById('available-players-list');
     availablePlayersDiv.innerHTML = '';
 
     if (registeredPlayers.length === 0) {
-        availablePlayersDiv.innerHTML = "<p>Cadastre jogadores para selecioná-los para a partida.</p>";
+        availablePlayersDiv.innerHTML = '<p>Cadastre jogadores para selecioná-los para a partida.</p>';
         document.getElementById('generate-teams-btn').disabled = true;
+        updateSummaryCards();
         return;
     }
 
     const ul = document.createElement('ul');
-    registeredPlayers.forEach((player, index) => {
-        const li = document.createElement('li');
-        li.classList.add('player-selection-item');
+    const normalizedFilter = currentFilter.trim().toLowerCase();
 
-        const switchDiv = document.createElement('label');
-        switchDiv.classList.add('onoff-switch');
+    registeredPlayers
+        .filter(player => player.name.toLowerCase().includes(normalizedFilter))
+        .forEach((player, index) => {
+            const li = document.createElement('li');
+            li.classList.add('player-selection-item');
 
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = index;
-        checkbox.addEventListener('change', handlePlayerSelection);
-        checkbox.id = `playerSwitch-${index}`;
+            const switchDiv = document.createElement('label');
+            switchDiv.classList.add('onoff-switch');
 
-        const sliderSpan = document.createElement('span');
-        sliderSpan.classList.add('slider', 'round');
-        sliderSpan.classList.add('off');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.value = index;
+            checkbox.addEventListener('change', handlePlayerSelection);
+            checkbox.id = `playerSwitch-${index}`;
 
-        switchDiv.appendChild(checkbox);
-        switchDiv.appendChild(sliderSpan);
+            const isAlreadySelected = selectedPlayersForGame.some(p => p.name === player.name);
+            checkbox.checked = isAlreadySelected;
 
+            const sliderSpan = document.createElement('span');
+            sliderSpan.classList.add('slider', 'round');
+            sliderSpan.classList.toggle('off', !isAlreadySelected);
 
-        const label = document.createElement('label');
-        label.textContent = `${player.name} `;
-        label.classList.add('player-name-label');
-        label.setAttribute('for', `playerSwitch-${index}`);
+            switchDiv.appendChild(checkbox);
+            switchDiv.appendChild(sliderSpan);
 
-        const levelBadgeSpan = document.createElement('span');
-        levelBadgeSpan.classList.add('level-badge', player.level);
-        levelBadgeSpan.textContent = player.level;
+            const label = document.createElement('label');
+            label.textContent = `${player.name} `;
+            label.classList.add('player-name-label');
+            label.setAttribute('for', `playerSwitch-${index}`);
 
-        label.appendChild(levelBadgeSpan);
+            const levelBadgeSpan = document.createElement('span');
+            levelBadgeSpan.classList.add('level-badge', player.level);
+            levelBadgeSpan.textContent = player.level;
 
-        li.appendChild(switchDiv);
-        li.appendChild(label);
-        ul.appendChild(li);
-    });
+            label.appendChild(levelBadgeSpan);
+
+            li.appendChild(switchDiv);
+            li.appendChild(label);
+            ul.appendChild(li);
+        });
+
     availablePlayersDiv.appendChild(ul);
+    document.getElementById('generate-teams-btn').disabled = selectedPlayersForGame.length < 6;
+    updateSummaryCards();
 }
 
+function filterPlayers() {
+    const filterInput = document.getElementById('playerFilter');
+    currentFilter = filterInput.value || '';
+    displayAvailablePlayersForSelection();
+}
+
+function clearSelection() {
+    selectedPlayersForGame = [];
+    const checkboxes = document.querySelectorAll('#available-players-list input[type="checkbox"]');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = false;
+        const slider = checkbox.nextElementSibling;
+        slider.classList.add('off');
+    });
+    document.getElementById('generate-teams-btn').disabled = true;
+    updateSummaryCards();
+}
+
+function resetAllData() {
+    const confirmed = confirm('Limpar todos os jogadores e seleções? Esta ação não pode ser desfeita.');
+    if (!confirmed) return;
+
+    registeredPlayers = [];
+    selectedPlayersForGame = [];
+    saveRegisteredPlayers();
+    displayRegisteredPlayers();
+    displayAvailablePlayersForSelection();
+    updateSummaryCards();
+}
 
 function handlePlayerSelection(event) {
-    const playerIndex = parseInt(event.target.value);
+    const playerIndex = parseInt(event.target.value, 10);
     const player = registeredPlayers[playerIndex];
     const slider = event.target.nextElementSibling;
 
     if (event.target.checked) {
-        selectedPlayersForGame.push(player);
+        if (!selectedPlayersForGame.some(p => p.name === player.name)) {
+            selectedPlayersForGame.push(player);
+        }
         slider.classList.remove('off');
     } else {
-        selectedPlayersForGame = selectedPlayersForGame.filter(p => p !== player);
+        selectedPlayersForGame = selectedPlayersForGame.filter(p => p.name !== player.name);
         slider.classList.add('off');
     }
 
     const generateTeamsButton = document.getElementById('generate-teams-btn');
     generateTeamsButton.disabled = selectedPlayersForGame.length < 6;
+    updateSummaryCards();
 }
-
 
 function generateTeams() {
     if (selectedPlayersForGame.length < 6) {
-        alert("Selecione pelo menos 6 jogadores para formar os times.");
+        alert('Selecione pelo menos 6 jogadores para formar os times.');
         return;
     }
 
@@ -161,16 +275,15 @@ function generateTeams() {
     const playersForTeamFormation = [...selectedPlayersForGame];
     shuffleArray(playersForTeamFormation);
 
-    let balancedTeams; // Declare here
+    let balancedTeams;
 
     if (playersForTeamFormation.length === 24) {
-        // Tournament Mode
         tournamentBracketDiv.classList.remove('hidden');
         nonTournamentTeamsDiv.classList.add('hidden');
-        balancedTeams = createBalancedTeams(playersForTeamFormation, 4, 6); // Assign to balancedTeams
+        balancedTeams = createBalancedTeams(playersForTeamFormation, 4, 6);
         displayTournamentBracket(balancedTeams, tournamentBracketDiv.querySelector('.bracket'));
+        modeInfoEl.textContent = 'Torneio (4 times)';
     } else {
-        // Non-Tournament Mode
         nonTournamentTeamsDiv.classList.remove('hidden');
         tournamentBracketDiv.classList.add('hidden');
         const numTeams = Math.floor(playersForTeamFormation.length / 6);
@@ -180,7 +293,11 @@ function generateTeams() {
 
         if (numOutsidePlayers > 0) {
             outsidePlayers = playersForTeamFormation.slice(-numOutsidePlayers);
-            teams = createBalancedTeams(playersForTeamFormation.slice(0, playersForTeamFormation.length - numOutsidePlayers), numTeams, 6);
+            teams = createBalancedTeams(
+                playersForTeamFormation.slice(0, playersForTeamFormation.length - numOutsidePlayers),
+                numTeams,
+                6
+            );
         } else {
             teams = createBalancedTeams(playersForTeamFormation, numTeams, 6);
         }
@@ -192,16 +309,17 @@ function generateTeams() {
             displayOutsidePlayersInfo(outsidePlayers, outsidePlayersInfoDiv);
             if (numOutsidePlayers >= 4 && numOutsidePlayers <= 5) {
                 displayRotationPlanForLargeOutsideGroup(teams, outsidePlayers, roundRotationDiv);
-            }
-            else {
+            } else {
                 displaySimplifiedRotationPlans(teams, outsidePlayers, roundRotationDiv);
             }
         }
+
+        modeInfoEl.textContent = `${numTeams} time(s) em quadra${numOutsidePlayers ? ` e ${numOutsidePlayers} fora` : ''}`;
     }
 
     teamsOutputDiv.classList.remove('hidden');
+    updateSummaryCards();
 }
-
 
 function createBalancedTeams(playerList, numTeams, teamSize) {
     const leveledPlayers = playerList.map(player => {
@@ -219,63 +337,54 @@ function createBalancedTeams(playerList, numTeams, teamSize) {
 
     const teams = Array.from({ length: numTeams }, () => []);
     const teamLevelSums = Array(numTeams).fill(0);
-    const teamLevelCounts = Array.from({ length: numTeams }, () => ({ iniciante: 0, intermediario: 0, avancado: 0 })); // Track level counts
+    const teamLevelCounts = Array.from({ length: numTeams }, () => ({ iniciante: 0, intermediario: 0, avancado: 0 }));
 
     leveledPlayers.forEach(player => {
         let teamIndexToAddTo = teamLevelSums.indexOf(Math.min(...teamLevelSums));
         teams[teamIndexToAddTo].push(player);
         teamLevelSums[teamIndexToAddTo] += player.levelValue;
-        teamLevelCounts[teamIndexToAddTo][player.level]++; // Update level count
+        teamLevelCounts[teamIndexToAddTo][player.level]++;
     });
 
-    // --- Iterative Balance Adjustment (Focus on Level Distribution) ---
     let improved = true;
     while (improved) {
         improved = false;
         for (let i = 0; i < numTeams; i++) {
             for (let j = i + 1; j < numTeams; j++) {
-                // Teams i and j to compare and potentially swap players
                 for (let playerIndex1 = 0; playerIndex1 < teams[i].length; playerIndex1++) {
                     for (let playerIndex2 = 0; playerIndex2 < teams[j].length; playerIndex2++) {
                         const player1 = teams[i][playerIndex1];
                         const player2 = teams[j][playerIndex2];
 
-                        // Heuristic: Try to swap if teams have different counts of 'avancado' or 'iniciante'
                         if ((teamLevelCounts[i].avancado > teamLevelCounts[j].avancado && player1.levelValue > player2.levelValue) ||
                             (teamLevelCounts[i].iniciante < teamLevelCounts[j].iniciante && player1.levelValue < player2.levelValue)) {
 
-                            // Calculate new level sums if swapped
                             const newTeamLevelSumI = teamLevelSums[i] - player1.levelValue + player2.levelValue;
                             const newTeamLevelSumJ = teamLevelSums[j] - player2.levelValue + player1.levelValue;
 
-                            // Check if swap improves balance (minimize level sum difference, and level distribution - roughly)
                             if (Math.abs(newTeamLevelSumI - newTeamLevelSumJ) < Math.abs(teamLevelSums[i] - teamLevelSums[j])) {
-                                // Perform Swap
                                 teams[i][playerIndex1] = player2;
                                 teams[j][playerIndex2] = player1;
                                 teamLevelSums[i] = newTeamLevelSumI;
                                 teamLevelSums[j] = newTeamLevelSumJ;
 
-                                // Update level counts for swapped players
                                 teamLevelCounts[i][player1.level]--;
                                 teamLevelCounts[i][player2.level]++;
                                 teamLevelCounts[j][player2.level]--;
                                 teamLevelCounts[j][player1.level]++;
 
-                                improved = true; // Indicate improvement and continue iteration
+                                improved = true;
                             }
                         }
                     }
                 }
             }
         }
-        if (!improved) break; // No improvements found in this iteration, stop
+        if (!improved) break;
     }
-
 
     return teams;
 }
-
 
 function displayInitialTeams(teams, outputDiv) {
     outputDiv.innerHTML = '';
@@ -291,7 +400,6 @@ function displayInitialTeams(teams, outputDiv) {
     });
 }
 
-
 function displayOutsidePlayersInfo(outsidePlayers, outputDiv) {
     outputDiv.innerHTML = `
         <div class="outside-players-list">
@@ -304,10 +412,9 @@ function displayOutsidePlayersInfo(outsidePlayers, outputDiv) {
     `;
 }
 
-
 function displaySimplifiedRotationPlans(teams, outsidePlayers, outputDiv) {
     outputDiv.innerHTML = '<div class="rotation-plans-grid">';
-    outsidePlayers.forEach((outsidePlayer, playerIndex) => {
+    outsidePlayers.forEach((outsidePlayer) => {
         outputDiv.innerHTML += `
             <div class="rotation-scenario">
                 <h4>Rotação para: ${outsidePlayer.name} <span class="level-badge ${outsidePlayer.level}">${outsidePlayer.level}</span></h4>
@@ -345,7 +452,6 @@ function displaySimplifiedRotationPlans(teams, outsidePlayers, outputDiv) {
     outputDiv.innerHTML += '</div>';
 }
 
-
 function displayRotationPlanForLargeOutsideGroup(teams, outsidePlayers, outputDiv) {
     outputDiv.innerHTML = '<div class="rotation-plans-grid">';
 
@@ -367,7 +473,7 @@ function displayRotationPlanForLargeOutsideGroup(teams, outsidePlayers, outputDi
         }
 
         if (numPlayersToCede > 0) {
-            cedePlayersIndices = findPlayersToCede(losingTeam, numToCede);
+            cedePlayersIndices = findPlayersToCede(losingTeam, numPlayersToCede);
         }
 
         const cedePlayers = cedePlayersIndices.map(index => losingTeam[index]);
@@ -380,14 +486,12 @@ function displayRotationPlanForLargeOutsideGroup(teams, outsidePlayers, outputDi
             newTeamWithOutside = [...outsideTeam, ...cedePlayers];
         }
 
-
         let cedePlayersNames = cedePlayers.map(p => `<strong>${p.name} <span class="level-badge ${p.level}">${p.level}</span></strong>`).join(' e ');
         if (cedePlayersNames) {
             outputDiv.innerHTML += `<p>Se o <strong>Time ${losingTeamIndex + 1}</strong> perder, ele cede ${cedePlayersNames} para formar um novo time com os jogadores de fora.</p>`;
         } else {
             outputDiv.innerHTML += `<p>Se o <strong>Time ${losingTeamIndex + 1}</strong> perder, ele cede jogadores para formar um novo time com os jogadores de fora.</p>`;
         }
-
 
         outputDiv.innerHTML += `
             <h5>Novo Time com Jogadores de Fora:</h5>
@@ -396,7 +500,7 @@ function displayRotationPlanForLargeOutsideGroup(teams, outsidePlayers, outputDi
             </ul>
             <h5>Time ${losingTeamIndex + 1} (após ceder jogadores):</h5>
             <ul>
-                ${remainingLosingTeam.map(player => `<li>${p.name} <span class="level-badge ${p.level}">${p.level}</span></li>`).join('')}
+                ${remainingLosingTeam.map(player => `<li>${player.name} <span class="level-badge ${player.level}">${player.level}</span></li>`).join('')}
             </ul>
         `;
 
@@ -405,14 +509,12 @@ function displayRotationPlanForLargeOutsideGroup(teams, outsidePlayers, outputDi
     outputDiv.innerHTML += '</div>';
 }
 
-
 function findPlayersToCede(team, numToCede) {
     const leveledTeam = team.map((player, index) => ({ ...player, index }));
     leveledTeam.sort((a, b) => getLevelValue(a.level) - getLevelValue(b.level));
 
     return leveledTeam.slice(0, numToCede).map(p => p.index);
 }
-
 
 function displayTournamentBracket(teams, bracketDiv) {
     bracketDiv.innerHTML = '';
@@ -453,7 +555,6 @@ function displayTournamentBracket(teams, bracketDiv) {
     });
 }
 
-
 function getLevelValue(level) {
     switch (level) {
         case 'iniciante': return 1;
@@ -463,7 +564,6 @@ function getLevelValue(level) {
     }
 }
 
-
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -471,12 +571,26 @@ function shuffleArray(array) {
     }
 }
 
+function calculateAverageLevel(players) {
+    if (!players.length) return '-';
+    const total = players.reduce((sum, player) => sum + getLevelValue(player.level), 0);
+    return (total / players.length).toFixed(1);
+}
+
+function updateSummaryCards() {
+    registeredCountEl.textContent = registeredPlayers.length;
+    selectedCountEl.textContent = selectedPlayersForGame.length;
+    balanceInfoEl.textContent = calculateAverageLevel(selectedPlayersForGame);
+    if (selectedPlayersForGame.length === 0) {
+        modeInfoEl.textContent = 'Aguardando seleção';
+    }
+}
 
 function saveRegisteredPlayers() {
-    localStorage.setItem('registeredVolleyballPlayers', JSON.stringify(registeredPlayers));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(registeredPlayers));
 }
 
 function loadRegisteredPlayers() {
-    const storedPlayers = localStorage.getItem('registeredVolleyballPlayers');
+    const storedPlayers = localStorage.getItem(STORAGE_KEY);
     return storedPlayers ? JSON.parse(storedPlayers) : [];
 }
