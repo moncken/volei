@@ -8,41 +8,96 @@
 </head>
 <body>
     <div class="container">
-        <h1>Montador de Times de Vôlei</h1>
+        <header class="page-header">
+            <div>
+                <p class="eyebrow">Ferramenta rápida</p>
+                <h1>Montador de Times de Vôlei</h1>
+                <p class="subtitle">Cadastre sua turma, selecione quem vai jogar e gere times equilibrados em segundos.</p>
+            </div>
+            <div class="header-actions">
+                <button class="ghost" onclick="resetAllData()">Limpar Tudo</button>
+                <button onclick="toggleAddPlayerForm()">Adicionar Jogador</button>
+            </div>
+        </header>
+
+        <section id="summary-cards" class="stats-grid">
+            <div class="stat-card">
+                <p class="label">Cadastrados</p>
+                <p id="registered-count" class="value">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="label">Selecionados</p>
+                <p id="selected-count" class="value">0</p>
+            </div>
+            <div class="stat-card">
+                <p class="label">Equilíbrio Médio</p>
+                <p id="balance-info" class="value">-</p>
+            </div>
+            <div class="stat-card">
+                <p class="label">Modo Ativo</p>
+                <p id="mode-info" class="value">Aguardando seleção</p>
+            </div>
+        </section>
 
         <section id="player-management">
-            <h2>Gerenciar Jogadores Cadastrados</h2>
-            <div id="add-player-form" class="hidden">
-                <div class="input-group">
-                    <label for="newPlayerName">Nome do Jogador:</label>
-                    <input type="text" id="newPlayerName" placeholder="Nome">
+            <div class="section-header">
+                <div>
+                    <h2>Gerenciar Jogadores</h2>
+                    <p>Edite, remova ou cadastre novos atletas. Use níveis para equilibrar os times.</p>
                 </div>
-                <div class="input-group">
-                    <label for="newPlayerLevel">Nível:</label>
-                    <select id="newPlayerLevel">
-                        <option value="iniciante">Iniciante</option>
-                        <option value="intermediario">Intermediário</option>
-                        <option value="avancado">Avançado</option>
-                    </select>
+                <div class="inline-actions">
+                    <button class="ghost" onclick="toggleAddPlayerForm()">Cadastrar Jogador</button>
                 </div>
-                <button onclick="registerNewPlayer()">Cadastrar Jogador</button>
-                <button onclick="toggleAddPlayerForm()">Cancelar</button>
-            </div>
-            <button onclick="toggleAddPlayerForm()">Adicionar Novo Jogador Cadastrado</button>
-            <div id="registered-players-list">
-                <!-- Registered players will be listed here -->
             </div>
 
+            <div id="add-player-form" class="hidden">
+                <div class="form-row">
+                    <div class="input-group">
+                        <label for="newPlayerName">Nome do Jogador</label>
+                        <input type="text" id="newPlayerName" placeholder="Ex.: Ana Silva">
+                    </div>
+                    <div class="input-group">
+                        <label for="newPlayerLevel">Nível</label>
+                        <select id="newPlayerLevel">
+                            <option value="iniciante">Iniciante</option>
+                            <option value="intermediario">Intermediário</option>
+                            <option value="avancado">Avançado</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button onclick="registerNewPlayer()" id="submit-player-btn">Cadastrar</button>
+                    <button class="ghost" onclick="cancelPlayerForm()">Cancelar</button>
+                </div>
+                <p id="form-helper" class="helper">Use nomes únicos para evitar confusões. Você pode editar depois.</p>
+            </div>
+
+            <div id="registered-players-list" class="card-list" aria-live="polite"></div>
         </section>
 
         <section id="player-selection-section">
-            <h2>Selecionar Jogadores para Partida</h2>
+            <div class="section-header">
+                <div>
+                    <h2>Selecionar Jogadores para Partida</h2>
+                    <p>Ative quem vai para o jogo. O botão abaixo libera a geração de times quando houver jogadores suficientes.</p>
+                </div>
+                <div class="form-row compact">
+                    <div class="input-group stretch">
+                        <label for="playerFilter">Filtrar por nome</label>
+                        <input type="search" id="playerFilter" placeholder="Digite para filtrar" oninput="filterPlayers()">
+                    </div>
+                    <button class="ghost" onclick="clearSelection()">Limpar seleção</button>
+                </div>
+            </div>
             <div id="available-players-list">
                 <!-- Available registered players to select for current game -->
             </div>
         </section>
 
-        <button id="generate-teams-btn" onclick="generateTeams()" disabled>Gerar Times</button>
+        <div class="cta-bar">
+            <button id="generate-teams-btn" onclick="generateTeams()" disabled>Gerar Times</button>
+            <p class="helper">Selecione pelo menos 6 jogadores. Com 24 jogadores, um torneio é criado automaticamente.</p>
+        </div>
 
         <div id="teams-output" class="hidden">
             <h2>Times Formados</h2>
